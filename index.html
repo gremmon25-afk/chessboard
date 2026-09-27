@@ -44,9 +44,15 @@
   }
   #statusbar {
     display: flex; gap: 10px; align-items: center; justify-content: center;
-    margin-bottom: 14px; flex-wrap: wrap;
+    margin-bottom: 10px; flex-wrap: wrap;
     font-size: .95rem;
   }
+  #readbar {
+    text-align: center; margin-bottom: 14px;
+    font-size: .9rem; color: var(--dim); font-style: italic;
+    max-width: 440px;
+  }
+  #readbar .eval { color: var(--neon); font-style: normal; font-family: ui-monospace, Menlo, monospace; }
   .pill {
     border: 1px solid #2c332a;
     border-radius: 999px;
@@ -123,6 +129,7 @@
     <span class="pill turn" id="turn">…</span>
     <span class="pill live" id="status">…</span>
   </div>
+  <div id="readbar"><span class="eval" id="eval"></span> <span id="read"></span></div>
 
   <div id="err">Couldn't load <code>game.json</code>. The gremlin ate it.</div>
   <div id="board" aria-label="chessboard"></div>
@@ -204,24 +211,43 @@
     }
   }
 
-  fetch('game.json', { cache: 'no-store' })
-    .then(function (res) {
-      if (!res.ok) throw new Error('bad status ' + res.status);
-      return res.json();
-    })
-    .then(function (g) {
-      renderBoard(parseFen(g.fen));
-      renderMoves(g.moves || []);
-      document.getElementById('turn').textContent = 'to move: ' + g.turn;
-      document.getElementById('status').textContent = g.status;
-      document.getElementById('foot').textContent =
-        'position as of ' + g.updated + ' — updated after every move';
-      document.title = 'Gremmon vs Human — ' + g.turn + ' to move';
-    })
-    .catch(function () {
-      document.getElementById('err').style.display = 'block';
-      document.getElementById('board').style.display = 'none';
-    });
+  function evalText(g) {
+    if (g.mate != null) {
+      var n = Math.abs(g.mate);
+      var who = g.mate > 0 ? 'White' : 'Black';
+      return 'mate: ' + who + ' in ' + n;
+    }
+    if (g.eval_pawns_white == null) return '';
+    var e = g.eval_pawns_white;
+    var who = e > 0 ? 'White' : 'Black';
+    return who + ' +' + Math.abs(e).toFixed(1);
+  }
+
+  function load() {
+    fetch('game.json', { cache: 'no-store' })
+      .then(function (res) {
+        if (!res.ok) throw new Error('bad status ' + res.status);
+        return res.json();
+      })
+      .then(function (g) {
+        renderBoard(parseFen(g.fen));
+        renderMoves(g.moves || []);
+        document.getElementById('turn').textContent = 'to move: ' + g.turn;
+        document.getElementById('status').textContent = g.status;
+        document.getElementById('eval').textContent = evalText(g);
+        document.getElementById('read').textContent = g.gremmons_read ? ' — ' + g.gremmons_read : '';
+        document.getElementById('foot').textContent =
+          'position as of ' + g.updated + ' — updated after every move';
+        document.title = 'Gremmon vs Human — ' + g.turn + ' to move';
+      })
+      .catch(function () {
+        document.getElementById('err').style.display = 'block';
+        document.getElementById('board').style.display = 'none';
+      });
+  }
+
+  load();
+  setInterval(load, 30000);
 })();
 </script>
 </body>
