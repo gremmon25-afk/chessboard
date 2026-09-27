@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gremmon vs Ryan — live board</title>
+<style>
+  :root {
+    --bg: #0c0f0d;
+    --ink: #d9d2bd;
+    --dim: #8a8471;
+    --neon: #a3e635;
+    --amber: #e0a458;
+    --sq-light: #c9b896;
+    --sq-dark: #6b5b43;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, rgba(163,230,53,.07), transparent 60%),
+      radial-gradient(900px 500px at 50% 110%, rgba(224,164,88,.06), transparent 60%),
+      var(--bg);
+    color: var(--ink);
+    font-family: Georgia, 'Times New Roman', serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 12px 40px;
+  }
+  header { text-align: center; max-width: 560px; }
+  h1 {
+    font-size: 1.5rem;
+    margin: 0 0 4px;
+    letter-spacing: .02em;
+  }
+  h1 .gob { color: var(--neon); }
+  .sub { color: var(--dim); font-style: italic; font-size: .95rem; margin: 0 0 14px; }
+  .rule {
+    height: 2px; width: 120px; margin: 0 auto 16px;
+    background: linear-gradient(90deg, transparent, var(--neon), transparent);
+    opacity: .5;
+  }
+  #statusbar {
+    display: flex; gap: 10px; align-items: center; justify-content: center;
+    margin-bottom: 14px; flex-wrap: wrap;
+    font-size: .95rem;
+  }
+  .pill {
+    border: 1px solid #2c332a;
+    border-radius: 999px;
+    padding: 4px 14px;
+    background: rgba(163,230,53,.06);
+  }
+  .pill.turn { border-color: var(--neon); color: var(--neon); }
+  .pill.live { border-color: var(--amber); color: var(--amber); }
+  #board {
+    width: min(92vw, 440px);
+    aspect-ratio: 1;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    border: 3px solid #2c332a;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 0 40px rgba(163,230,53,.08), 0 8px 30px rgba(0,0,0,.6);
+  }
+  .sq {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    font-size: clamp(22px, 8.5vw, 40px);
+    line-height: 1;
+    user-select: none;
+  }
+  .sq.light { background: #c9b896; }
+  .sq.dark  { background: #6b5b43; }
+  .sq .pc-w { color: #f5f1e3; text-shadow: 0 1px 2px #000, 0 0 1px #000; }
+  .sq .pc-b { color: #141414; text-shadow: 0 1px 1px rgba(255,255,255,.25); }
+  .coord {
+    position: absolute;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 10px;
+    color: rgba(0,0,0,.55);
+    pointer-events: none;
+  }
+  .coord.rank { top: 2px; left: 3px; }
+  .coord.file { bottom: 2px; right: 4px; }
+  .sq.light .coord { color: rgba(60,45,25,.7); }
+  .sq.dark .coord  { color: rgba(240,230,200,.55); }
+  #moves {
+    max-width: 440px; width: min(92vw, 440px);
+    margin: 18px 0 0; padding: 0;
+    list-style: none;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: .9rem;
+  }
+  #moves li {
+    display: flex; gap: 12px;
+    padding: 6px 10px;
+    border-bottom: 1px dotted #2c332a;
+  }
+  #moves li:last-child { border-bottom: none; background: rgba(163,230,53,.05); }
+  #moves .n { color: var(--dim); min-width: 2ch; text-align: right; }
+  #moves .w { flex: 1; }
+  #moves .b { flex: 1; color: var(--amber); }
+  footer { margin-top: 22px; color: var(--dim); font-size: .8rem; font-style: italic; text-align: center; }
+  #err {
+    display: none; max-width: 440px; text-align: center;
+    border: 1px solid #7a2e2e; border-radius: 8px;
+    padding: 16px; color: #e08a8a; background: rgba(122,46,46,.12);
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1><span class="gob">👺</span> Gremmon vs Ryan</h1>
+    <p class="sub">the ongoing chat game, now with a board that doesn't slant</p>
+    <div class="rule"></div>
+  </header>
+
+  <div id="statusbar">
+    <span class="pill turn" id="turn">…</span>
+    <span class="pill live" id="status">…</span>
+  </div>
+
+  <div id="err">Couldn't load <code>game.json</code>. The gremlin ate it.</div>
+  <div id="board" aria-label="chessboard"></div>
+
+  <ol id="moves"></ol>
+
+  <footer id="foot"></footer>
+
+<script>
+(function () {
+  var GLYPHS = {
+    k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟',
+    K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘', P: '♙'
+  };
+  var FILES = 'abcdefgh';
+
+  function parseFen(fen) {
+    var grid = [];
+    var rows = fen.split(' ')[0].split('/');
+    for (var r = 0; r < 8; r++) {
+      var row = [];
+      var cells = rows[r];
+      for (var i = 0; i < cells.length; i++) {
+        var c = cells[i];
+        if (c >= '1' && c <= '8') {
+          for (var k = 0; k < +c; k++) row.push(null);
+        } else {
+          row.push(c);
+        }
+      }
+      grid.push(row);
+    }
+    return grid; // grid[0] = rank 8 … grid[7] = rank 1
+  }
+
+  function renderBoard(grid) {
+    var board = document.getElementById('board');
+    board.innerHTML = '';
+    for (var r = 0; r < 8; r++) {
+      for (var f = 0; f < 8; f++) {
+        var sq = document.createElement('div');
+        var isLight = (r + f) % 2 === 0; // a8 is light
+        sq.className = 'sq ' + (isLight ? 'light' : 'dark');
+        var piece = grid[r][f];
+        if (piece) {
+          var span = document.createElement('span');
+          span.className = piece === piece.toUpperCase() ? 'pc-w' : 'pc-b';
+          span.textContent = GLYPHS[piece];
+          sq.appendChild(span);
+        }
+        // coordinates: rank numbers on the a-file, file letters on rank 1
+        if (f === 0) {
+          var rc = document.createElement('span');
+          rc.className = 'coord rank';
+          rc.textContent = (8 - r);
+          sq.appendChild(rc);
+        }
+        if (r === 7) {
+          var fc = document.createElement('span');
+          fc.className = 'coord file';
+          fc.textContent = FILES[f];
+          sq.appendChild(fc);
+        }
+        board.appendChild(sq);
+      }
+    }
+  }
+
+  function renderMoves(moves) {
+    var ol = document.getElementById('moves');
+    ol.innerHTML = '';
+    for (var i = 0; i < moves.length; i += 2) {
+      var li = document.createElement('li');
+      var n = document.createElement('span'); n.className = 'n'; n.textContent = (i / 2 + 1) + '.';
+      var w = document.createElement('span'); w.className = 'w'; w.textContent = moves[i] || '';
+      var b = document.createElement('span'); b.className = 'b'; b.textContent = moves[i + 1] || '';
+      li.appendChild(n); li.appendChild(w); li.appendChild(b);
+      ol.appendChild(li);
+    }
+  }
+
+  fetch('game.json', { cache: 'no-store' })
+    .then(function (res) {
+      if (!res.ok) throw new Error('bad status ' + res.status);
+      return res.json();
+    })
+    .then(function (g) {
+      renderBoard(parseFen(g.fen));
+      renderMoves(g.moves || []);
+      document.getElementById('turn').textContent = 'to move: ' + g.turn;
+      document.getElementById('status').textContent = g.status;
+      document.getElementById('foot').textContent =
+        'position as of ' + g.updated + ' — updated after every move';
+      document.title = 'Gremmon vs Ryan — ' + g.turn + ' to move';
+    })
+    .catch(function () {
+      document.getElementById('err').style.display = 'block';
+      document.getElementById('board').style.display = 'none';
+    });
+})();
+</script>
+</body>
+</html>
