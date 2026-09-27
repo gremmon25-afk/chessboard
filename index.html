@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gremmon vs Ryan — live board</title>
+<title>Gremmon vs Human — live board</title>
 <style>
   :root {
     --bg: #0c0f0d;
@@ -114,7 +114,7 @@
 </head>
 <body>
   <header>
-    <h1><span class="gob">👺</span> Gremmon vs Ryan</h1>
+    <h1><span class="gob">👺</span> Gremmon vs Human</h1>
     <p class="sub">the ongoing chat game, now with a board that doesn't slant</p>
     <div class="rule"></div>
   </header>
@@ -216,7 +216,7 @@
       document.getElementById('status').textContent = g.status;
       document.getElementById('foot').textContent =
         'position as of ' + g.updated + ' — updated after every move';
-      document.title = 'Gremmon vs Ryan — ' + g.turn + ' to move';
+      document.title = 'Gremmon vs Human — ' + g.turn + ' to move';
     })
     .catch(function () {
       document.getElementById('err').style.display = 'block';
